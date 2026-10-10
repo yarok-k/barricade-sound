@@ -1,0 +1,16 @@
+[package]
+name = "Barricade-sound"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+gtk = "0.18"
+dbus = "0.9"
+niri-ipc = "25"
+anyhow = "1.0"
+gtk-layer-shell = "0.7"
+gio = "0.18"
+pollster = "0.4.0"
+stray = "0.1.3"
+ksni = "0.2.1"
+serde_yaml = "0.9"
