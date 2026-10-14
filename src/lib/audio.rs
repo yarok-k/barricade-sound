@@ -26,15 +26,27 @@ impl AudioLib {
             }
         }
     }
-    // устанавливает уровень гпромкости и мут
+    // устанавливает уровень гпромкости передать значение от 0 до 100
     pub fn set_volume(&mut self, pct: u32) {
         Self::wpctl(&["set-volume", "@DEFAULT_AUDIO_SINK@", &format!("{}%", pct)]);
         self.volume = pct;
+    }
+    pub fn get_volume(&mut self) -> u32 {
+        self.update();
+        return self.volume
     }
 
     pub fn set_mute(&mut self, mute: bool) {
         Self::wpctl(&["set-mute", "@DEFAULT_AUDIO_SINK@", if mute { "1" } else { "0" }]);
         self.mute = mute;
+    }
+    pub fn switch_mute(&mut self) {
+        Self::wpctl(&["set-mute", "@DEFAULT_AUDIO_SINK@", if !self.mute { "1" } else { "0" }]);
+        self.mute = !self.mute;
+    }
+    pub fn get_mute(&mut self) -> bool {
+        self.update();
+        return self.mute
     }
 
     /// Возвращает название иконки в формате freedesktop.

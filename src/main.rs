@@ -6,6 +6,7 @@ use ui::Ui;
 
 mod lib;
 mod ui;
+mod widgets;
 
 fn main() -> Result<(), anyhow::Error> {
     let app = Application::builder()
