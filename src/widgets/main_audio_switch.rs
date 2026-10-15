@@ -12,6 +12,8 @@ pub struct AudioSwitch {
     mute_trigger: gtk::Button,
     volume_switch: gtk::Scale,
     indicator: gtk::Image,
+    sink_switcher: gtk::MenuButton,
+    sink_list: gtk::Popover,
     audio_lib: Rc<RefCell<AudioLib>>,
 }
 
@@ -42,14 +44,20 @@ impl WidgetTrait for AudioSwitch {
         volume_switch.set_digits(0);
         volume_switch.set_draw_value(false);
 
+        let sink_switcher = gtk::MenuButton::new();
+        let sink_list = gtk::Popover::new(Some(&sink_switcher));
+
         internal_container.pack_start(&mute_trigger, false, false, 0);
         internal_container.pack_start(&volume_switch, true, true, 0);
+        internal_container.pack_start(&sink_switcher, false, false, 0);
 
         Ok(Self {
             main_container: internal_container,
             mute_trigger,
             volume_switch,
             indicator,
+            sink_switcher,
+            sink_list,
             audio_lib,
         })
     }

@@ -49,6 +49,11 @@ impl AudioLib {
         return self.mute
     }
 
+
+    pub fn get_sinks(&mut self) -> Vec<String> {
+        Self::wpctl(&[]);
+    }
+
     /// Возвращает название иконки в формате freedesktop.
     pub fn get_icon_name(&self) -> &'static str {
         if self.mute || self.volume <= 0 {
