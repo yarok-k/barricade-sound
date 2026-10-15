@@ -7,6 +7,12 @@ pub struct AudioLib {
     pub mute: bool,
 }
 
+pub struct  Sink {
+    pub isdefault: bool,
+    pub id: i32,
+    pub name: String
+}
+
 impl AudioLib {
     pub fn new() -> Self {
         let mut audio = Self {
@@ -50,10 +56,55 @@ impl AudioLib {
     }
 
 
-    pub fn get_sinks(&mut self) -> Vec<String> {
-        Self::wpctl(&[]);
+    pub fn get_sinks(&mut self) -> Vec<Sink> {
+        let Some(output) = Self::wpctl(&["status"]) else {
+            return Vec::new();
+        };
+
+        let mut in_audio = false;
+        let mut in_sinks = false;
+        let mut sinks = Vec::new();
+
+        for line in output.lines() {
+            // Заголовок верхнего уровня (Audio / Video / Settings) — строка без отступа
+            if line.chars().next().is_some_and(|c| c.is_alphabetic()) {
+                in_audio = line.trim() == "Audio";
+                in_sinks = false;
+                continue;
+            }
+            if !in_audio {
+                continue;
+            }
+
+            // Убираем пробелы и символы псевдографики (│ ├─ └─)
+            let content = line
+                .trim_start_matches(|c: char| {
+                    c.is_whitespace() || ('\u{2500}'..='\u{257F}').contains(&c)
+                })
+                .trim_end();
+            if content.is_empty() {
+                continue;
+            }
+
+            // Подзаголовок: Devices:, Sinks:, Sink endpoints:, Sources:, Streams: ...
+            if let Some(section) = content.strip_suffix(':') {
+                in_sinks = section == "Sinks";
+                continue;
+            }
+
+            if in_sinks {
+                if let Some(sink) = Self::parse_sink_line(content) {
+                    sinks.push(sink);
+                }
+            }
+        }
+
+        sinks
     }
 
+    pub fn switch_sink(sink_id:i32){
+
+    }
     /// Возвращает название иконки в формате freedesktop.
     pub fn get_icon_name(&self) -> &'static str {
         if self.mute || self.volume <= 0 {
@@ -65,8 +116,34 @@ impl AudioLib {
             _ => "audio-volume-high",
         }
     }
+
+    // технические функции нужные для выполнения других
     fn wpctl(args: &[&str]) -> Option<String> {
         let out = Command::new("wpctl").args(args).output().ok()?;
         Some(String::from_utf8_lossy(&out.stdout).into_owned())
+    }
+
+    fn parse_sink_line(s: &str) -> Option<Sink> {
+        // "*   51. Name [vol: 0.40]" или "52. Name [vol: 1.00 MUTED]"
+        let (isdefault, s) = match s.strip_prefix('*') {
+            Some(rest) => (true, rest.trim_start()),
+            None => (false, s),
+        };
+
+        let (id_str, rest) = s.split_once('.')?;
+        let id = id_str.trim().parse::<i32>().ok()?;
+
+        let rest = rest.trim();
+        // Отрезаем только хвостовой блок "[vol: ...]"
+        let name = match rest.rfind(" [") {
+            Some(i) if rest.ends_with(']') => &rest[..i],
+            _ => rest,
+        };
+
+        Some(Sink {
+            isdefault,
+            id,
+            name: name.trim().to_string(),
+        })
     }
 }
