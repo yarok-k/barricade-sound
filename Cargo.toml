@@ -2,6 +2,9 @@
 name = "Barricade-sound"
 version = "0.1.0"
 edition = "2024"
+license = "Apache License 2.0"
+description = "окно управления звуком для barricade-bar"
+repository = "https://github.com/yarok-k/barricade-sound"
 
 [dependencies]
 gtk = "0.18"
