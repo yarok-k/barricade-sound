@@ -1,11 +1,10 @@
 use crate::lib::audio::{AudioSinkLib as AudioLib, Sink};
 use crate::lib::widget::WidgetTrait;
 use anyhow::Result;
-use dbus::arg::RefArg;
 use gtk::prelude::*;
 use std::cell::RefCell;
-use std::rc::Rc;
 use std::collections::{HashMap, HashSet};
+use std::rc::Rc;
 
 struct SinkRow {
     button: gtk::Button,
@@ -27,24 +26,24 @@ pub struct SinkControl {
 
 impl WidgetTrait for SinkControl {
     fn new() -> Result<Self> {
-        // верхний ряд (то, что раньше было main_container)
+        // верхний ряд
         let row = gtk::Box::new(gtk::Orientation::Horizontal, 0);
 
         let mute_trigger = gtk::Button::new();
         let indicator = gtk::Image::builder()
-            .icon_name(AudioLib::get_sink_icon_name())
+            .icon_name(AudioLib::get_icon_name())
             .build();
         mute_trigger.add(&indicator);
 
         let ind = indicator.clone();
         mute_trigger.connect_clicked(move |_| {
             AudioLib::switch_mute();
-            ind.set_icon_name(Some(AudioLib::get_sink_icon_name()));
+            ind.set_icon_name(Some(AudioLib::get_icon_name()));
         });
 
         let volume_switch = gtk::Scale::with_range(gtk::Orientation::Horizontal, 0.0, 100.0, 1.0);
         volume_switch.set_hexpand(true);
-        volume_switch.set_value(AudioLib::get_volume().as_f64().unwrap_or(0.0));
+        volume_switch.set_value(AudioLib::get_volume() as f64);
         volume_switch.set_digits(0);
         volume_switch.set_draw_value(false);
 
@@ -78,7 +77,7 @@ impl WidgetTrait for SinkControl {
         row.pack_start(&volume_switch, true, true, 0);
         row.pack_start(&sink_switcher, false, false, 0);
 
-        // главный контейнер теперь вертикальный
+        // главный контейнер вертикальный
         let main_container = gtk::Box::new(gtk::Orientation::Vertical, 0);
         main_container.pack_start(&row, false, false, 0);
         main_container.pack_start(&sink_revealer, false, false, 0);
@@ -91,23 +90,19 @@ impl WidgetTrait for SinkControl {
             sink_switcher,
             sink_revealer,
             sink_list,
-            sink_rows: Rc::new(RefCell::new(HashMap::new()))
+            sink_rows: Rc::new(RefCell::new(HashMap::new())),
         };
 
-        let sinks = AudioLib::get_sinks();
-        selfer.sync_sinks(sinks);
+        selfer.sync_sinks(AudioLib::get_devices());
 
         Ok(selfer)
     }
 
     fn update(&mut self) -> Result<()> {
-        let sinks = {
-            self.indicator.set_icon_name(Some(AudioLib::get_sink_icon_name()));
-            let vol = self.volume_switch.value().clamp(0.0, 100.0).round() as u32;
-            AudioLib::set_volume(vol);
-            AudioLib::get_sinks()
-        };
-        self.sync_sinks(sinks);
+        self.indicator.set_icon_name(Some(AudioLib::get_icon_name()));
+        let vol = self.volume_switch.value().clamp(0.0, 100.0).round() as u32;
+        AudioLib::set_volume(vol);
+        self.sync_sinks(AudioLib::get_devices());
         Ok(())
     }
 }
@@ -156,7 +151,7 @@ impl SinkControl {
                 let id = sink.id;
                 let switcher = self.sink_switcher.clone();
                 button.connect_clicked(move |_| {
-                    AudioLib::set_sink(id);
+                    let _ = AudioLib::set_device(id);
                     switcher.set_active(false);
                 });
 
