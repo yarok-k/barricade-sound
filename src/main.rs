@@ -1,7 +1,5 @@
-use gtk::gdk;
-use gtk::glib;
 use gtk::prelude::*;
-use gtk::{Application, ApplicationWindow};
+use gtk::{CssProvider, StyleContext,Application, ApplicationWindow, glib, gdk};
 use ui::Ui;
 
 mod lib;
@@ -12,7 +10,7 @@ fn main() -> Result<(), anyhow::Error> {
     let app = Application::builder()
         .application_id("ru.bst.Barricade.sound")
         .build();
-
+    app.connect_startup(|_| load_css());
     app.connect_activate(move |app| {
         create_window(app);
     });
@@ -54,4 +52,16 @@ fn create_window(app: &Application) {
     });
 
     win.show_all();
+}
+fn load_css() {
+    let provider = CssProvider::new();
+    provider
+        .load_from_data(include_bytes!("style.css"))
+        .expect("Не удалось загрузить src/style.css");
+
+    StyleContext::add_provider_for_screen(
+        &gdk::Screen::default().expect("Нет gdk::Screen"),
+        &provider,
+        gtk::STYLE_PROVIDER_PRIORITY_APPLICATION,
+    );
 }

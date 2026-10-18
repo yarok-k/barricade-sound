@@ -3,6 +3,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use crate::widgets::sink_control::{SinkControl};
 use crate::widgets::mic_cintrol::{MicControl};
+use crate::widgets::player::Player;
 
 use crate::lib::widget::WidgetTrait;
 
@@ -31,13 +32,20 @@ impl Ui {
         mic_controller.main_container.set_hexpand(true);
         main_container.pack_start(&mic_controller.main_container, false, false,0);
 
+        let mut player = Player::new()?;
+        player.main_container.set_halign(gtk::Align::Fill);
+        player.main_container.set_hexpand(true);
+        main_container.pack_start(&player.main_container, false, false,0);
+
 
         let sink_controller_rc = Rc::new(RefCell::new(sink_controller));
         let mic_controller_rc = Rc::new(RefCell::new(mic_controller));
+        let player_rc = Rc::new(RefCell::new(player));
 
         gtk::glib::timeout_add_local(std::time::Duration::from_millis(500), move || {
             sink_controller_rc.borrow_mut().update();
             mic_controller_rc.borrow_mut().update();
+            player_rc.borrow_mut().update();
             gtk::glib::ControlFlow::Continue
         });
         Ok(Self {})
