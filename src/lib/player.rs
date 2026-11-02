@@ -12,8 +12,11 @@ use std::thread;
 /// чтобы название трека с любыми символами не ломало разбор.
 const SEP: &str = "\u{1f}";
 
+
+const PLAYERS: &str = "spotify,%any";
 /// URL обложек, которые мы уже пытались скачать в этом запуске (повторно не качаем).
 static ATTEMPTED: OnceLock<Mutex<HashSet<PathBuf>>> = OnceLock::new();
+
 
 #[derive(Clone)]
 pub struct PlayerLib {}
@@ -187,18 +190,25 @@ impl PlayerLib {
 
 impl TechZone {
     // технические функции, нужные для выполнения других
-
     fn playerctl(args: &[&str]) -> Option<String> {
-        let out = Command::new("playerctl").args(args).output().ok()?;
-        // "No players found" и подобное — ненулевой код возврата
+
+        let out = match Command::new("playerctl")
+            .arg("--player")
+            .arg(PLAYERS)
+            .args(args)
+            .output()
+        {
+            Ok(o) => o,
+            Err(e) => {
+                eprintln!("playerctl не запустился: {e}");
+                return None;
+            }
+        };
+
         if !out.status.success() {
             return None;
         }
-        Some(
-            String::from_utf8_lossy(&out.stdout)
-                .trim_end_matches('\n')
-                .to_string(),
-        )
+        Some(String::from_utf8_lossy(&out.stdout).trim_end_matches('\n').to_string())
     }
 
     fn cache_dir() -> PathBuf {

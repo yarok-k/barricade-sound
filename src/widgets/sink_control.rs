@@ -29,10 +29,11 @@ impl WidgetTrait for SinkControl {
         // верхний ряд
         let row = gtk::Box::new(gtk::Orientation::Horizontal, 0);
 
-        let mute_trigger = gtk::Button::new();
+        let mut mute_trigger = gtk::Button::new();
         let indicator = gtk::Image::builder()
             .icon_name(AudioLib::get_icon_name())
             .build();
+        mute_trigger.set_can_focus(false);
         mute_trigger.add(&indicator);
 
         let ind = indicator.clone();
@@ -50,6 +51,7 @@ impl WidgetTrait for SinkControl {
         // кнопка-переключатель со стрелкой
         let arrow = gtk::Image::from_icon_name(Some("pan-end-symbolic"), gtk::IconSize::Button);
         let sink_switcher = gtk::ToggleButton::new();
+        sink_switcher.set_can_focus(false);
         sink_switcher.add(&arrow);
 
         // ревелер со списком
