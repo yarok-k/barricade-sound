@@ -200,7 +200,6 @@ impl TechZone {
         {
             Ok(o) => o,
             Err(e) => {
-                eprintln!("playerctl не запустился: {e}");
                 return None;
             }
         };
