@@ -1,0 +1,29 @@
+# Notices for Barricade Sound
+
+Copyright 2026 yarok-k
+
+## Copyright Holders
+
+- GTK 3 and related libraries: The gtk-rs Project Developers
+- GLib / Pango / GTK: The GNOME Project
+- Cairo: Various contributors (see https://cairographics.org/)
+- GTK Layer Shell: pentamassiv <pentamassiv@posteo.de>
+- ksni: iovxw <iovxw@outlook.com>
+- dbus (dbus-rs): The dbus-rs contributors
+- serde, serde_yaml, anyhow: David Tolnay and contributors
+- pollster: Joshua Barretto and contributors
+
+## External Tools
+
+This application invokes the following programs as separate processes; they are not linked or distributed with it:
+
+- WirePlumber (wpctl): https://pipewire.pages.freedesktop.org/wireplumber/
+- playerctl: https://github.com/altdesktop/playerctl
+- curl: https://curl.se/
+
+## License Information
+
+See LICENSE file for full license texts.
+
+This product includes software developed by the GTK project (https://www.gtk.org/).
+This product includes software developed by the GNOME project (https://www.gnome.org/).
