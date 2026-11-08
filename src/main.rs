@@ -82,6 +82,7 @@ impl StyleWatcher {
 fn main() -> Result<(), anyhow::Error> {
     let app = Application::builder()
         .application_id("ru.bst.Barricade.sound")
+        .flags(gtk::gio::ApplicationFlags::HANDLES_COMMAND_LINE)
         .build();
 
     app.connect_startup(|_| {
@@ -92,8 +93,27 @@ fn main() -> Result<(), anyhow::Error> {
         });
     });
 
-    app.connect_activate(move |app| {
-        create_window(app);
+    app.connect_command_line(|app, cmd| {
+        let switch = match lib::flags::parse(cmd.arguments()) {
+            Ok(s) => s,
+            Err(e) => {
+                if e.use_stderr() {
+                    eprintln!("{e}");
+                    return 1;
+                }
+                println!("{e}"); // --help / --version
+                return 0;
+            }
+        };
+
+        let running = !app.windows().is_empty();
+
+        if switch && running {
+            app.quit();
+        } else if !running {
+            create_window(app);
+        }
+        0
     });
 
     app.run();
