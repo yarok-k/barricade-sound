@@ -19,6 +19,7 @@ impl Ui {
         window.set_default_size(200, 200);
 
         let main_container = gtk::Box::new(gtk::Orientation::Vertical,0);
+        main_container.style_context().add_class("barricade_background");
         // main_container.set_hexpand(true);
         window.add(&main_container);
         // виджет для настройки звука системы (применяется к default sink)

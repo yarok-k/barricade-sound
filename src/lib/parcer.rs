@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::time::SystemTime;
 
 use anyhow::{Context, Result};
 use serde::Deserialize;
@@ -10,7 +11,7 @@ const DEFAULT_CONFIG: &str =
     "elements:\n  left:\n  center:\n    - \"clock\"\n  right:\nstylesheet: \"\"\n";
 
 // Позиции элементов
-#[derive(Debug, Deserialize, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq, Hash)]
 #[serde(rename_all = "lowercase")]
 pub enum ElementPos {
     Left,
@@ -110,6 +111,27 @@ fn resolve_path(raw: &str, config_dir: &Path) -> PathBuf {
     }
 }
 
+// Время последнего изменения файла. None, если файла нет или он недоступен.
+// Используется для отслеживания изменений конфига и CSS (горячая перезагрузка)
+pub fn modified_time(path: &Path) -> Option<SystemTime> {
+    fs::metadata(path).and_then(|m| m.modified()).ok()
+}
+
+// Создаёт файл (и недостающие родительские каталоги), если его нет
+fn ensure_file(path: &Path) -> Result<()> {
+    if path.exists() {
+        return Ok(());
+    }
+
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)
+            .with_context(|| format!("cannot create {}", parent.display()))?;
+    }
+
+    fs::write(path, "")
+        .with_context(|| format!("cannot write {}", path.display()))
+}
+
 pub struct Parser {
     config_dir: PathBuf,
     file_path: PathBuf,
@@ -124,10 +146,22 @@ impl Parser {
         Self { config_dir, file_path }
     }
 
+    // Путь к файлу конфига (нужен для слежения за изменениями)
+    pub fn config_path(&self) -> &Path {
+        &self.file_path
+    }
+
     // Читает файл (создавая его при отсутствии) и разбирает в ParsedConfig
     pub fn parse(&self) -> Result<ParsedConfig> {
         let raw = self.read()?;
-        self.parse_str(&raw)
+        let parsed = self.parse_str(&raw)?;
+
+        // Если в конфиге указан CSS-файл, но его нет — создаём пустой
+        if let Some(css) = &parsed.stylesheet {
+            ensure_file(css)?;
+        }
+
+        Ok(parsed)
     }
 
     pub fn parse_str(&self, raw: &str) -> Result<ParsedConfig> {
