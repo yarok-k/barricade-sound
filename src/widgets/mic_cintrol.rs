@@ -34,6 +34,7 @@ impl WidgetTrait for MicControl {
             .icon_name(AudioLib::get_icon_name())
             .build();
         mute_trigger.set_can_focus(false);
+        mute_trigger.style_context().add_class("barricade_mute_butt");
         mute_trigger.add(&indicator);
 
         let ind = indicator.clone();
@@ -43,6 +44,7 @@ impl WidgetTrait for MicControl {
         });
 
         let volume_switch = gtk::Scale::with_range(gtk::Orientation::Horizontal, 0.0, 100.0, 1.0);
+        volume_switch.style_context().add_class("barricade_audio_scale");
         volume_switch.set_hexpand(true);
         volume_switch.set_value(AudioLib::get_volume() as f64);
         volume_switch.set_digits(0);
@@ -50,13 +52,16 @@ impl WidgetTrait for MicControl {
         volume_switch.set_can_focus(false);
 
         // кнопка-переключатель со стрелкой
-        let arrow = gtk::Image::from_icon_name(Some("pan-end-symbolic"), gtk::IconSize::Button);
+
         let mic_switcher = gtk::ToggleButton::new();
+        mic_switcher.style_context().add_class("barricade_list_popup_butt");
         mic_switcher.set_can_focus(false);
+        let arrow = gtk::Image::from_icon_name(Some("pan-end-symbolic"), gtk::IconSize::Button);
         mic_switcher.add(&arrow);
 
         // ревелер со списком микрофонов
         let mic_list = gtk::Box::new(gtk::Orientation::Vertical, 0);
+        mic_list.style_context().add_class("barricade_popup_list_background");
         let mic_revealer = gtk::Revealer::new();
         mic_revealer.set_transition_type(gtk::RevealerTransitionType::SlideDown);
         mic_revealer.set_transition_duration(200);
