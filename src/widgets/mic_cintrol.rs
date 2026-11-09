@@ -12,163 +12,204 @@ struct MicRow {
     name: gtk::Label,
 }
 
+/// Виджеты верхней строки (мут, ползунок, стрелка раскрытия)
+struct LineWidgets {
+    container: gtk::Box,
+    indicator: gtk::Image,
+    switcher: gtk::ToggleButton,
+    volume_scale: gtk::Scale,
+}
+
 #[derive(Clone)]
 pub struct MicControl {
     pub main_container: gtk::Box,
-    mute_trigger: gtk::Button,
-    volume_switch: gtk::Scale,
     indicator: gtk::Image,
-    mic_switcher: gtk::ToggleButton,
-    mic_revealer: gtk::Revealer,
-    mic_list: gtk::Box,
-    mic_rows: Rc<RefCell<HashMap<i32, MicRow>>>,
+    volume_scale: gtk::Scale,
+    switcher: gtk::ToggleButton,
+    list: gtk::Box,
+    rows: Rc<RefCell<HashMap<i32, MicRow>>>,
 }
 
 impl WidgetTrait for MicControl {
     fn new() -> Result<Self> {
-        // верхний ряд
-        let row = gtk::Box::new(gtk::Orientation::Horizontal, 0);
+        let line = Self::build_line();
 
-        let mute_trigger = gtk::Button::new();
+        let list = gtk::Box::new(gtk::Orientation::Vertical, 0);
+        list.style_context().add_class("barricade_popup_list_background");
+        let revealer = Self::build_revealer(&line.switcher, &list);
+
+        let main_container = gtk::Box::new(gtk::Orientation::Vertical, 0);
+        main_container.pack_start(&line.container, false, false, 0);
+        main_container.pack_start(&revealer, false, false, 0);
+
+        let this = Self {
+            main_container,
+            indicator: line.indicator,
+            volume_scale: line.volume_scale,
+            switcher: line.switcher,
+            list,
+            rows: Rc::new(RefCell::new(HashMap::new())),
+        };
+
+        this.sync_rows(AudioLib::get_devices());
+        Ok(this)
+    }
+
+    fn update(&mut self) -> Result<()> {
+        self.indicator
+            .set_icon_name(Some(AudioLib::get_icon_name()));
+
+        // система -> ползунок (обратное направление: connect_value_changed)
+        let vol = AudioLib::get_volume() as f64;
+        if (self.volume_scale.value() - vol).abs() >= 1.0 {
+            self.volume_scale.set_value(vol);
+        }
+
+        self.sync_rows(AudioLib::get_devices());
+        Ok(())
+    }
+}
+
+impl MicControl {
+    // ---------- список устройств ----------
+
+    /// Собирает одну строку списка (кнопка + статус + имя) и вешает обработчик клика.
+    fn build_row(mic: &Mic, switcher: &gtk::ToggleButton) -> MicRow {
+        let status = gtk::Label::new(Some(Self::status_text(mic)));
+        status.set_width_chars(1);
+
+        let name = gtk::Label::new(Some(&mic.name));
+        name.set_xalign(0.0);
+
+        let content = gtk::Box::new(gtk::Orientation::Horizontal, 6);
+        content.pack_start(&status, false, false, 0);
+        content.pack_start(&name, true, true, 0);
+
+        let button = gtk::Button::new();
+        button.add(&content);
+
+        let id = mic.id;
+        let switcher = switcher.clone();
+        button.connect_clicked(move |_| {
+            let _ = AudioLib::set_device(id);
+            switcher.set_active(false);
+        });
+
+        MicRow { button, status, name }
+    }
+
+    /// Обновляет только изменившиеся поля существующей строки.
+    fn update_row(row: &MicRow, mic: &Mic) {
+        let status_text = Self::status_text(mic);
+        if row.status.text().as_str() != status_text {
+            row.status.set_text(status_text);
+        }
+        if row.name.text().as_str() != mic.name.as_str() {
+            row.name.set_text(&mic.name);
+        }
+    }
+
+    fn status_text(mic: &Mic) -> &'static str {
+        if mic.isdefault { "*" } else { " " }
+    }
+
+    /// Приводит список в соответствие с актуальным набором устройств.
+    fn sync_rows(&self, mics: Vec<Mic>) {
+        let mut rows = self.rows.borrow_mut();
+        let incoming: HashSet<i32> = mics.iter().map(|m| m.id).collect();
+
+        // 1. удаляем устройства, которых больше нет
+        rows.retain(|id, row| {
+            let keep = incoming.contains(id);
+            if !keep {
+                self.list.remove(&row.button);
+            }
+            keep
+        });
+
+        // 2. обновляем существующие / добавляем новые и расставляем порядок
+        for (pos, mic) in mics.iter().enumerate() {
+            match rows.get(&mic.id) {
+                Some(row) => {
+                    Self::update_row(row, mic);
+                    self.list.reorder_child(&row.button, pos as i32);
+                }
+                None => {
+                    let row = Self::build_row(mic, &self.switcher);
+                    self.list.pack_start(&row.button, false, false, 0);
+                    self.list.reorder_child(&row.button, pos as i32);
+                    row.button.show_all();
+                    rows.insert(mic.id, row);
+                }
+            }
+        }
+    }
+
+    // ---------- сборка интерфейса ----------
+
+    fn build_revealer(switcher: &gtk::ToggleButton, list: &gtk::Box) -> gtk::Revealer {
+        let revealer = gtk::Revealer::new();
+        revealer.set_transition_type(gtk::RevealerTransitionType::SlideDown);
+        revealer.set_transition_duration(200);
+        revealer.add(list);
+
+        // active кнопки -> reveal-child ревелера
+        switcher
+            .bind_property("active", &revealer, "reveal-child")
+            .flags(gtk::glib::BindingFlags::SYNC_CREATE)
+            .build();
+
+        revealer
+    }
+
+    fn build_line() -> LineWidgets {
+        let container = gtk::Box::new(gtk::Orientation::Horizontal, 0);
+
+        // кнопка мута + индикатор состояния
+        let mute_button = gtk::Button::new();
+        mute_button.style_context().add_class("barricade_mute_butt");
+        mute_button.set_can_focus(false);
         let indicator = gtk::Image::builder()
             .icon_name(AudioLib::get_icon_name())
             .build();
-        mute_trigger.set_can_focus(false);
-        mute_trigger.style_context().add_class("barricade_mute_butt");
-        mute_trigger.add(&indicator);
+        mute_button.add(&indicator);
 
         let ind = indicator.clone();
-        mute_trigger.connect_clicked(move |_| {
+        mute_button.connect_clicked(move |_| {
             AudioLib::switch_mute();
             ind.set_icon_name(Some(AudioLib::get_icon_name()));
         });
 
-        let volume_switch = gtk::Scale::with_range(gtk::Orientation::Horizontal, 0.0, 100.0, 1.0);
-        volume_switch.style_context().add_class("barricade_audio_scale");
-        volume_switch.set_hexpand(true);
-        volume_switch.set_value(AudioLib::get_volume() as f64);
-        volume_switch.set_digits(0);
-        volume_switch.set_draw_value(false);
-        volume_switch.set_can_focus(false);
+        // ползунок усиления
+        let volume_scale = gtk::Scale::with_range(gtk::Orientation::Horizontal, 0.0, 100.0, 1.0);
+        volume_scale.style_context().add_class("barricade_audio_scale");
+        volume_scale.set_hexpand(true);
+        volume_scale.set_digits(0);
+        volume_scale.set_draw_value(false);
+        volume_scale.set_can_focus(false);
+        volume_scale.set_value(AudioLib::get_volume() as f64);
+        // подключаем ПОСЛЕ начальной установки значения
+        volume_scale.connect_value_changed(|s| {
+            AudioLib::set_gain(s.value().clamp(0.0, 100.0).round() as u32);
+        });
 
-        // кнопка-переключатель со стрелкой
-
-        let mic_switcher = gtk::ToggleButton::new();
-        mic_switcher.style_context().add_class("barricade_list_popup_butt");
-        mic_switcher.set_can_focus(false);
+        // кнопка со стрелкой раскрытия списка
+        let switcher = gtk::ToggleButton::new();
+        switcher.style_context().add_class("barricade_list_popup_butt");
+        switcher.set_can_focus(false);
         let arrow = gtk::Image::from_icon_name(Some("pan-end-symbolic"), gtk::IconSize::Button);
-        mic_switcher.add(&arrow);
-
-        // ревелер со списком микрофонов
-        let mic_list = gtk::Box::new(gtk::Orientation::Vertical, 0);
-        mic_list.style_context().add_class("barricade_popup_list_background");
-        let mic_revealer = gtk::Revealer::new();
-        mic_revealer.set_transition_type(gtk::RevealerTransitionType::SlideDown);
-        mic_revealer.set_transition_duration(200);
-        mic_revealer.add(&mic_list);
-
-        // active кнопки -> reveal-child ревелера
-        mic_switcher
-            .bind_property("active", &mic_revealer, "reveal-child")
-            .flags(gtk::glib::BindingFlags::SYNC_CREATE)
-            .build();
-
-        // меняем стрелку при переключении
-        mic_switcher.connect_toggled(move |b| {
+        switcher.add(&arrow);
+        switcher.connect_toggled(move |b| {
             arrow.set_from_icon_name(
                 Some(if b.is_active() { "pan-down-symbolic" } else { "pan-end-symbolic" }),
                 gtk::IconSize::Button,
             );
         });
 
-        row.pack_start(&mute_trigger, false, false, 0);
-        row.pack_start(&volume_switch, true, true, 0);
-        row.pack_start(&mic_switcher, false, false, 0);
+        container.pack_start(&mute_button, false, false, 0);
+        container.pack_start(&volume_scale, true, true, 0);
+        container.pack_start(&switcher, false, false, 0);
 
-        // главный контейнер вертикальный
-        let main_container = gtk::Box::new(gtk::Orientation::Vertical, 0);
-        main_container.pack_start(&row, false, false, 0);
-        main_container.pack_start(&mic_revealer, false, false, 0);
-
-        let selfer = Self {
-            main_container,
-            mute_trigger,
-            volume_switch,
-            indicator,
-            mic_switcher,
-            mic_revealer,
-            mic_list,
-            mic_rows: Rc::new(RefCell::new(HashMap::new())),
-        };
-
-        selfer.sync_mics(AudioLib::get_devices());
-
-        Ok(selfer)
-    }
-
-    fn update(&mut self) -> Result<()> {
-        self.indicator.set_icon_name(Some(AudioLib::get_icon_name()));
-        let vol = self.volume_switch.value().clamp(0.0, 100.0).round() as u32;
-        AudioLib::set_gain(vol);
-        self.sync_mics(AudioLib::get_devices());
-        Ok(())
-    }
-}
-
-impl MicControl {
-    fn sync_mics(&self, mics: Vec<Mic>) {
-        let mut rows = self.mic_rows.borrow_mut();
-        let incoming: HashSet<i32> = mics.iter().map(|m| m.id).collect();
-
-        // 1. удаляем устройства, которых больше нет
-        rows.retain(|id, row| {
-            if incoming.contains(id) {
-                true
-            } else {
-                self.mic_list.remove(&row.button);
-                false
-            }
-        });
-
-        // 2. обновляем существующие и добавляем новые
-        for (pos, mic) in mics.iter().enumerate() {
-            let status_text = if mic.isdefault { "*" } else { " " };
-
-            if let Some(row) = rows.get(&mic.id) {
-                // обновляем только то, что изменилось
-                if row.status.text() != status_text {
-                    row.status.set_text(status_text);
-                }
-                if row.name.text() != mic.name.as_str() {
-                    row.name.set_text(&mic.name);
-                }
-                self.mic_list.reorder_child(&row.button, pos as i32);
-            } else {
-                let status = gtk::Label::new(Some(status_text));
-                status.set_width_chars(1);
-                let name = gtk::Label::new(Some(&mic.name));
-                name.set_xalign(0.0);
-
-                let content = gtk::Box::new(gtk::Orientation::Horizontal, 6);
-                content.pack_start(&status, false, false, 0);
-                content.pack_start(&name, true, true, 0);
-
-                let button = gtk::Button::new();
-                button.add(&content);
-
-                let id = mic.id;
-                let switcher = self.mic_switcher.clone();
-                button.connect_clicked(move |_| {
-                    let _ = AudioLib::set_device(id);
-                    switcher.set_active(false);
-                });
-
-                self.mic_list.pack_start(&button, false, false, 0);
-                self.mic_list.reorder_child(&button, pos as i32);
-                button.show_all();
-
-                rows.insert(mic.id, MicRow { button, status, name });
-            }
-        }
+        LineWidgets { container, indicator, switcher, volume_scale }
     }
 }
