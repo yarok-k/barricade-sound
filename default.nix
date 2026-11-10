@@ -28,16 +28,20 @@ rustPlatform.buildRustPackage {
   ];
 
   buildInputs = with pkgs; [
-    gtk3
-    glib
-    cairo
-    pango
-    gdk-pixbuf
-    gtk-layer-shell
-    dbus
-    networkmanager
+    pkg-config
+    clang
+    wrapGAppsHook3
+    gcc
+    gdb
+    rustc
+    cargo
+    rust-analyzer
+    usbutils
+    exfatprogs
+    playerctl
     libpulseaudio
     adwaita-icon-theme # символические иконки freedesktop
+
   ];
 
   # wpctl нужен виджету audio во время работы
