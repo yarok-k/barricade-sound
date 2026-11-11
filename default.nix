@@ -1,4 +1,4 @@
-# Пакет barricade-bar.
+# Пакет barricade-sound.
 #   nix-build                       # сборка без flake
 #   pkgs.callPackage ./default.nix {}  # из своей конфигурации
 {
@@ -27,33 +27,29 @@ rustPlatform.buildRustPackage {
     wrapGAppsHook3
   ];
 
+  # только то, что нужно для сборки и линковки
   buildInputs = with pkgs; [
-    pkg-config
-    clang
-    wrapGAppsHook3
-    gcc
-    gdb
-    rustc
-    cargo
-    rust-analyzer
-    usbutils
-    exfatprogs
-    playerctl
+    gtk3
+    glib
+    gdk-pixbuf
+    gtk-layer-shell
+    dbus
     libpulseaudio
     adwaita-icon-theme # символические иконки freedesktop
-
   ];
 
-  # wpctl нужен виджету audio во время работы
+  # wpctl и playerctl нужны виджетам звука и плеера во время работы:
+  # добавляем их в PATH обёртки, чтобы не зависеть от системного PATH
   preFixup = ''
-    gappsWrapperArgs+=(--prefix PATH : ${lib.makeBinPath [ pkgs.wireplumber ]})
+    gappsWrapperArgs+=(--prefix PATH : ${lib.makeBinPath [ pkgs.wireplumber pkgs.playerctl ]})
   '';
 
   meta = {
-    description = "Статусбар для niri на GTK3";
-    homepage = "https://github.com/yarok-k/barricade-bar";
+    description = "Окно управления звуком для barricade";
+    homepage = "https://github.com/yarok-k/barricade-sound";
     license = lib.licenses.gpl3Plus;
-    mainProgram = "barricade_bar";
+    # имя бинарника берётся из name в Cargo.toml (с заглавной буквы)
+    mainProgram = "Barricade-sound";
     platforms = lib.platforms.linux;
   };
 }

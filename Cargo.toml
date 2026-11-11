@@ -1,5 +1,5 @@
 [package]
-name = "Barricade-sound"
+name = "barricade-sound"
 version = "0.1.0"
 edition = "2024"
 license = "Apache License 2.0"
