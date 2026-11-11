@@ -1,4 +1,4 @@
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::path::PathBuf;
 use std::rc::Rc;
 use std::time::{Duration, SystemTime};
@@ -11,6 +11,17 @@ use lib::parcer::{modified_time, Parser};
 mod lib;
 mod ui;
 mod widgets;
+
+const REVEAL_DURATION_MS: u32 = 250;
+
+// Состояние закрытия окна: нужно, чтобы повторные запросы закрытия
+// во время анимации не обрывали её.
+#[derive(Clone, Copy, PartialEq)]
+enum CloseState {
+    Open,
+    Closing,
+    Done,
+}
 
 // Следит за конфигом и CSS-файлом и перезагружает стили на лету.
 // Провайдер создаётся один раз и только перезаполняется.
@@ -109,7 +120,11 @@ fn main() -> Result<(), anyhow::Error> {
         let running = !app.windows().is_empty();
 
         if switch && running {
-            app.quit();
+            // закрываем окна (а не app.quit()), чтобы отработала анимация сворачивания;
+            // приложение завершится само, когда закроется последнее окно
+            for win in app.windows() {
+                win.close();
+            }
         } else if !running {
             create_window(app);
         }
@@ -142,6 +157,52 @@ fn create_window(app: &Application) {
 
     let _ui = Ui::new(&win, app);
 
+    // Оборачиваем содержимое окна в ревелер, чтобы оно разворачивалось при открытии
+    let revealer = gtk::Revealer::new();
+    revealer.set_transition_type(gtk::RevealerTransitionType::SlideDown);
+    revealer.set_transition_duration(REVEAL_DURATION_MS);
+    revealer.set_reveal_child(false);
+
+    if let Some(child) = win.child() {
+        win.remove(&child);
+        revealer.add(&child);
+    }
+    win.add(&revealer);
+
+    // Закрытие с анимацией: сначала сворачиваем ревелер вверх, и только
+    // когда анимация закончилась, закрываем окно по-настоящему.
+    let state = Rc::new(Cell::new(CloseState::Open));
+
+    win.connect_delete_event({
+        let revealer = revealer.clone();
+        let state = state.clone();
+        move |_, _| match state.get() {
+            CloseState::Done => glib::Propagation::Proceed,
+            // уже сворачиваемся — повторные запросы игнорируем
+            CloseState::Closing => glib::Propagation::Stop,
+            CloseState::Open => {
+                // ревелер ещё не раскрыт — анимировать нечего, закрываем сразу
+                if !revealer.is_child_revealed() {
+                    return glib::Propagation::Proceed;
+                }
+                state.set(CloseState::Closing);
+                revealer.set_reveal_child(false);
+                glib::Propagation::Stop
+            }
+        }
+    });
+
+    revealer.connect_child_revealed_notify({
+        let win = win.clone();
+        let state = state.clone();
+        move |revealer| {
+            if state.get() == CloseState::Closing && !revealer.is_child_revealed() {
+                state.set(CloseState::Done);
+                win.close();
+            }
+        }
+    });
+
     // Esc -> закрыть
     win.connect_key_press_event(|win, event| {
         if event.keyval() == gdk::keys::constants::Escape {
@@ -159,4 +220,9 @@ fn create_window(app: &Application) {
     });
 
     win.show_all();
+
+    // Раскрываем уже после первого показа, иначе анимации не будет
+    glib::idle_add_local_once(move || {
+        revealer.set_reveal_child(true);
+    });
 }
