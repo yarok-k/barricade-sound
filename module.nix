@@ -2,10 +2,10 @@
 { config, lib, pkgs, ... }:
 
 let
-  cfg = config.programs.barricade-bar;
+  cfg = config.programs.barricade-sound;
 in
 {
-  options.programs.barricade-bar = {
+  options.programs.barricade-sound = {
     enable = lib.mkEnableOption "barricade-sound, a sound applet for barricade";
 
     package = lib.mkOption {
@@ -32,7 +32,7 @@ in
     # бару нужны NetworkManager (сеть) и PipeWire/WirePlumber (звук)
     networking.networkmanager.enable = lib.mkDefault true;
 
-    systemd.user.services.barricade-bar = lib.mkIf cfg.autostart {
+    systemd.user.services.barricade-sound = lib.mkIf cfg.autostart {
       description = "Barricade Sound";
       wantedBy = [ "graphical-session.target" ];
       partOf = [ "graphical-session.target" ];

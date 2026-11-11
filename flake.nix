@@ -15,11 +15,11 @@
       });
 
       apps = forAllSystems (pkgs: rec {
-        barricade-bar = {
+        barricade-sound = {
           type = "app";
           program = nixpkgs.lib.getExe self.packages.${pkgs.stdenv.hostPlatform.system}.default;
         };
-        default = barricade-bar;
+        default = barricade-sound;
       });
 
       devShells = forAllSystems (pkgs: {
@@ -31,8 +31,8 @@
       };
 
       nixosModules = {
-        barricade-bar = ./module.nix;
-        default = self.nixosModules.barricade-bar;
+        barricade-sound = ./module.nix;
+        default = self.nixosModules.barricade-sound;
       };
     };
 }
